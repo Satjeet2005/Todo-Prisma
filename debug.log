@@ -1,0 +1,13 @@
+prisma:client clientVersion 7.6.0 +6ms
+prisma:client:clientEngine Using driver adapter: '{\n' +
+  '  "provider": "postgres",\n' +
+  '  "adapterName": "@prisma/adapter-pg",\n' +
+  '  "config": {\n' +
+  '    "connectionString": "postgresql://neondb_owner:npg_Yc1gEDHv9Ufp@ep-green-star-amludrid.c-5.us-east-1.aws.neon.tech/neondb?sslmode=no-verify",\n' +
+  '    "ssl": {\n' +
+  '      "rejectUnauthorized": false\n' +
+  '    }\n' +
+  '  },\n' +
+  '  "externalPool": null\n' +
+  '}' +1ms
+Server working at http://localhost:3005
