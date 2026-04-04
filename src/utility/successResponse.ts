@@ -1,15 +1,18 @@
+import type { Response } from "express";
+
 interface Success<T> {
+  res: Response
   success?: boolean;
   message: string;
   data?: T;
   status: number;
 }
 
-export const successResponse = <T>({data, message, success, status}: Success<T>) => {
-  return {
-    success: success || true,
-    message,
+export const successResponse = <T>({res, data, message, success, status}: Success<T>) => {
+  return res.status(status).json({
     data,
-    status,
-  };
+    message,
+    success: success || true,
+    status
+  })
 };

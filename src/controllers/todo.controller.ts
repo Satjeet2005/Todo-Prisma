@@ -1,7 +1,7 @@
 import type { Response, Request } from "express";
 import { prisma } from "../config/prisma.ts";
 import type { CreateTodo, DeleteTodo } from "../models/todo.model.ts";
-import { errorResponse } from "../utility/errorResponse.ts";
+import { errorResponse, isErrorResponse } from "../utility/errorResponse.ts";
 import { successResponse } from "../utility/successResponse.ts";
 
 export const createTodo = async (
@@ -13,14 +13,16 @@ export const createTodo = async (
     const { title, description } = req.body;
 
     if (!title)
-      throw errorResponse({
+      return errorResponse({
+        res,
         status: 400,
         message: "Title is required to create the Todo",
         success: false,
       });
 
     if (!description)
-      throw errorResponse({
+      return errorResponse({
+        res,
         status: 400,
         message: "Description is required to create the Todo",
         success: false,
@@ -34,7 +36,8 @@ export const createTodo = async (
     });
 
     if (!todo)
-      throw errorResponse({
+      return errorResponse({
+        res,
         message: "Error while creating todo",
         status: 500,
         success: false,
@@ -42,20 +45,24 @@ export const createTodo = async (
 
     console.log("Todo Created Successfully:", todo);
 
-    res.json(
-      successResponse<CreateTodo>({
-        data: todo,
-        message: "Todo created successfully",
-        status: 201,
-        success: true,
-      }),
-    );
+    return successResponse<CreateTodo>({
+      res,
+      data: todo,
+      message: "Todo created successfully",
+      status: 201,
+      success: true,
+    });
   } catch (error) {
-    console.log(error);
+    console.log("Error while creating the todo", error);
 
-    throw errorResponse({
+    const message = isErrorResponse(error)
+      ? error.message
+      : "Something went wrong while creating todo";
+
+    return errorResponse({
+      res,
       status: 500,
-      message: "Something went wrong while creating the todo",
+      message: message,
       success: false,
     });
   }
@@ -66,7 +73,8 @@ export const getTodos = async (req: Request, res: Response) => {
     const todos = await prisma.todo.findMany();
 
     if (!todos)
-      throw errorResponse({
+      return errorResponse({
+        res,
         message: "Something went wrong while fetching the todos",
         status: 500,
         success: false,
@@ -74,18 +82,23 @@ export const getTodos = async (req: Request, res: Response) => {
 
     console.log("Todos fetched successfully:", todos);
 
-    res.json(
-      successResponse<CreateTodo[]>({
-        data: todos,
-        message: "Todos fetched successfully",
-        status: 200,
-        success: true,
-      }),
-    );
+    return successResponse<CreateTodo[]>({
+      res,
+      data: todos,
+      message: "Todos fetched successfully",
+      status: 200,
+      success: true,
+    });
   } catch (error) {
     console.log("Error while fetching the todos", error);
-    throw errorResponse({
-      message: "Something went wrong while fetching the todos",
+
+    const message = isErrorResponse(error)
+      ? error.message
+      : "Something went wrong while fetching the todos";
+
+    return errorResponse({
+      res,
+      message: message,
       status: 500,
       success: false,
     });
@@ -100,7 +113,8 @@ export const deleteTodo = async (
     const { id } = req.body;
 
     if (!id)
-      throw errorResponse({
+      return errorResponse({
+        res,
         message: "Todo id is required to delete the todo",
         status: 400,
         success: false,
@@ -111,23 +125,29 @@ export const deleteTodo = async (
     });
 
     if (!todo)
-      throw errorResponse({
+      return errorResponse({
+        res,
         message: `Error while deleting todo with id ${id}`,
         status: 500,
         success: false,
       });
 
-    res.json(
-      successResponse({
-        message: `Todo deleted successfully having id ${id}`,
-        status: 200,
-        success: true,
-      }),
-    );
+    return successResponse({
+      res,
+      message: `Todo deleted successfully having id ${id}`,
+      status: 200,
+      success: true,
+    });
   } catch (error) {
-    console.log(error);
-    throw errorResponse({
-      message: "Something went wrong while deleting todo",
+    console.log("Error while deleting the todo", error);
+
+    const message = isErrorResponse(error)
+      ? error.message
+      : "Something went wrong while deleting todo";
+
+    return errorResponse({
+      res,
+      message: message,
       status: 500,
       success: false,
     });
