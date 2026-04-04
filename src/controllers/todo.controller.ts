@@ -30,6 +30,13 @@ export const createTodo = async (req: Request<{}, {}, Todo>, res: Response) => {
       },
     });
 
+    if (!todo)
+      throw errorResponse({
+        message: "Error while creating todo",
+        status: 500,
+        success: false,
+      });
+
     console.log("Todo Created Successfully:", todo);
 
     res.json(
@@ -42,11 +49,42 @@ export const createTodo = async (req: Request<{}, {}, Todo>, res: Response) => {
     );
   } catch (error) {
     console.log(error);
+
     throw errorResponse({
       status: 500,
-      message: "Something went wrong",
-      success: false
-    })
+      message: "Something went wrong while creating the todo",
+      success: false,
+    });
   }
 };
 
+export const getTodos = async (req: Request, res: Response) => {
+  try {
+    const todos = await prisma.todo.findMany();
+
+    if (!todos)
+      throw errorResponse({
+        message: "Something went wrong while fetching the todos",
+        status: 500,
+        success: false,
+      });
+
+    console.log("Todos fetched successfully:", todos);
+
+    res.json(
+      successResponse<Todo[]>({
+        data: todos,
+        message: "Todos fetched successfully",
+        status: 200,
+        success: true,
+      }),
+    );
+  } catch (error) {
+    console.log("Error while fetching the todos", error);
+    throw errorResponse({
+      message: "Something went wrong while fetching the todos",
+      status: 500,
+      success: false,
+    });
+  }
+};
