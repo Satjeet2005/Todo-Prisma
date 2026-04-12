@@ -13,5 +13,4 @@ const adapter = new PrismaPg({
 });
 const prisma = new PrismaClient({ adapter });
 
-console.log(process.env.DATABASE_URL)
 export { prisma };

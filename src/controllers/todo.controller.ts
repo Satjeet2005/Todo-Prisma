@@ -1,28 +1,26 @@
 import type { Response, Request } from "express";
 import { prisma } from "../config/prisma.ts";
-import type { CreateTodo, DeleteTodo } from "../models/todo.model.ts";
-import { errorResponse, isErrorResponse } from "../utility/errorResponse.ts";
-import { successResponse } from "../utility/successResponse.ts";
+import type { Todo } from "../models/todo.model.ts";
+import { APIError } from "../utility/Error.ts";
+import { APISuccess } from "../utility/Success.ts";
+import logger from "../utility/logger.ts";
 
 export const createTodo = async (
-  req: Request<{}, {}, CreateTodo>,
+  req: Request<{}, {}, Omit<Todo, "id">>,
   res: Response,
 ) => {
   try {
-    console.log(req.body);
     const { title, description } = req.body;
 
     if (!title)
-      return errorResponse({
-        res,
+      throw new APIError({
         status: 400,
         message: "Title is required to create the Todo",
         success: false,
       });
 
     if (!description)
-      return errorResponse({
-        res,
+      throw new APIError({
         status: 400,
         message: "Description is required to create the Todo",
         success: false,
@@ -35,32 +33,34 @@ export const createTodo = async (
       },
     });
 
-    if (!todo)
-      return errorResponse({
-        res,
+    if (!todo) {
+      logger.error("Error while creating todo");
+      throw new APIError({
         message: "Error while creating todo",
         status: 500,
         success: false,
       });
+    }
 
-    console.log("Todo Created Successfully:", todo);
+    logger.info({ todoId: todo.id }, "Todo created successfully");
 
-    return successResponse<CreateTodo>({
-      res,
-      data: todo,
-      message: "Todo created successfully",
-      status: 201,
-      success: true,
-    });
+    return res.status(201).json(
+      new APISuccess<Todo>({
+        data: todo,
+        message: "Todo created successfully",
+        status: 201,
+        success: true,
+      }),
+    );
   } catch (error) {
-    console.log("Error while creating the todo", error);
+    logger.error(error);
 
-    const message = isErrorResponse(error)
-      ? error.message
-      : "Something went wrong while creating todo";
+    const message =
+      error instanceof APIError
+        ? error.message
+        : "Something went wrong while creating todo";
 
-    return errorResponse({
-      res,
+    throw new APIError({
       status: 500,
       message: message,
       success: false,
@@ -72,32 +72,33 @@ export const getTodos = async (req: Request, res: Response) => {
   try {
     const todos = await prisma.todo.findMany();
 
-    if (!todos)
-      return errorResponse({
-        res,
+    if (!todos) {
+      logger.error("Something went wrong while fetching todos");
+
+      throw new APIError({
         message: "Something went wrong while fetching the todos",
         status: 500,
         success: false,
       });
+    }
 
-    console.log("Todos fetched successfully:", todos);
-
-    return successResponse<CreateTodo[]>({
-      res,
-      data: todos,
-      message: "Todos fetched successfully",
-      status: 200,
-      success: true,
-    });
+    return res.status(200).json(
+      new APISuccess<Todo[]>({
+        data: todos,
+        message: "Todos fetched successfully",
+        status: 200,
+        success: true,
+      }),
+    );
   } catch (error) {
-    console.log("Error while fetching the todos", error);
+    logger.error(error);
 
-    const message = isErrorResponse(error)
-      ? error.message
-      : "Something went wrong while fetching the todos";
+    const message =
+      error instanceof APIError
+        ? error.message
+        : "Something went wrong while fetching the todos";
 
-    return errorResponse({
-      res,
+    throw new APIError({
       message: message,
       status: 500,
       success: false,
@@ -106,47 +107,129 @@ export const getTodos = async (req: Request, res: Response) => {
 };
 
 export const deleteTodo = async (
-  req: Request<{}, {}, DeleteTodo>,
+  req: Request<Pick<Todo, "id">, {}>,
   res: Response,
 ) => {
   try {
-    const { id } = req.body;
+    const { id } = req.params;
 
     if (!id)
-      return errorResponse({
-        res,
+      throw new APIError({
         message: "Todo id is required to delete the todo",
         status: 400,
         success: false,
       });
 
+    const numericId = Number(id);
+
+    if (Number.isNaN(numericId))
+      throw new APIError({
+        message: "Invalid id",
+        status: 400,
+        success: false,
+      });
+
     const todo = await prisma.todo.delete({
-      where: { id: id },
+      where: { id: numericId },
     });
 
-    if (!todo)
-      return errorResponse({
-        res,
+    if (!todo) {
+      logger.error("Something went wrong while deleting todo");
+      throw new APIError({
         message: `Error while deleting todo with id ${id}`,
         status: 500,
         success: false,
       });
+    }
 
-    return successResponse({
-      res,
-      message: `Todo deleted successfully having id ${id}`,
-      status: 200,
-      success: true,
-    });
+    logger.info({todoId: todo.id},"Todo deleted successfully")
+
+    return res.status(200).json(
+      new APISuccess({
+        message: "Todo deleted successfully",
+        status: 200,
+        success: true,
+      }),
+    );
   } catch (error) {
-    console.log("Error while deleting the todo", error);
+    logger.error(error);
 
-    const message = isErrorResponse(error)
+    const message =
+      error instanceof APIError
+        ? error.message
+        : "Something went wrong while deleting todo";
+
+    throw new APIError({
+      message: message,
+      status: 500,
+      success: false,
+    });
+  }
+};
+
+export const updateTodo = async (
+  req: Request<Pick<Todo, "id">, {}, Partial<Omit<Todo, "id">>>,
+  res: Response,
+) => {
+  try {
+    const { id } = req.params;
+    const { title: newTitle, description: newDescription } = req.body;
+
+    if (!id)
+      throw new APIError({
+        message: "id is required to update todo",
+        status: 400,
+        success: false,
+      });
+
+    const numericId = Number(id);
+
+    if (Number.isNaN(numericId))
+      throw new APIError({
+        message: "Invalid Id",
+        status: 400,
+        success: false,
+      });
+
+    const hasTitle = typeof newTitle === "string" && newTitle.trim().length > 0;
+    const hasDescription =
+      typeof newDescription === "string" && newDescription.trim().length > 0;
+
+    if (!hasTitle && !hasDescription)
+      throw new APIError({
+        message: "Provide either title or description",
+        status: 400,
+        success: false,
+      });
+
+    const updateData: any = {};
+
+    if (hasTitle) updateData.title = newTitle;
+
+    if (hasDescription) updateData.description = newDescription;
+
+    const updatedTodo = await prisma.todo.update({
+      where: { id: numericId },
+      data: updateData,
+    });
+
+    if (!updatedTodo)
+      logger.error("Something went wrong while updating the todo");
+
+      throw new APIError({
+        message: "Error in updating todo",
+        status: 500,
+        success: false,
+      });
+
+  } catch (error) {
+    logger.error(error);
+
+    const message = error instanceof APIError
       ? error.message
-      : "Something went wrong while deleting todo";
+      : "Something went wrong while updating todo";
 
-    return errorResponse({
-      res,
+    throw new APIError({
       message: message,
       status: 500,
       success: false,
