@@ -142,7 +142,7 @@ export const deleteTodo = async (
       });
     }
 
-    logger.info({todoId: todo.id},"Todo deleted successfully")
+    logger.info({ todoId: todo.id }, "Todo deleted successfully");
 
     return res.status(200).json(
       new APISuccess({
@@ -213,7 +213,7 @@ export const updateTodo = async (
       data: updateData,
     });
 
-    if (!updatedTodo)
+    if (!updatedTodo) {
       logger.error("Something went wrong while updating the todo");
 
       throw new APIError({
@@ -221,13 +221,24 @@ export const updateTodo = async (
         status: 500,
         success: false,
       });
+    }
 
+    logger.info({ todoId: updatedTodo.id }, "Todo updated successfully");
+    res.status(200).json(
+      new APISuccess<Todo>({
+        message: "Todo updated successfully",
+        status: 200,
+        success: true,
+        data: updatedTodo,
+      }),
+    );
   } catch (error) {
     logger.error(error);
 
-    const message = error instanceof APIError
-      ? error.message
-      : "Something went wrong while updating todo";
+    const message =
+      error instanceof APIError
+        ? error.message
+        : "Something went wrong while updating todo";
 
     throw new APIError({
       message: message,
