@@ -1,17 +1,17 @@
 import { Router } from "express";
 import {
-  createTodo,
-  deleteTodo,
-  getTodos,
-  updateTodo,
+  createTodoController,
+  deleteTodoController,
+  getTodosController,
+  updateTodoController,
 } from "../controllers/todo.controller.ts";
 
 const router = Router();
 
 router
-  .post("/", createTodo)
-  .get("/", getTodos)
-  .delete("/:id", deleteTodo)
-  .patch("/:id", updateTodo);
+  .post("/", createTodoController)
+  .get("/", getTodosController)
+  .delete("/:id", deleteTodoController)
+  .patch("/:id", updateTodoController);
 
 export default router;
