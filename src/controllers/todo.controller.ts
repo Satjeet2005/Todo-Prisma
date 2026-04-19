@@ -1,22 +1,21 @@
-import type { Response, Request } from "express";
-import { prisma } from "../config/prisma.ts";
+import type { Request, Response } from "express";
 import type { Todo } from "../models/todo.model.ts";
-import { APIError } from "../utility/Error.ts";
-import { APISuccess } from "../utility/Success.ts";
-import logger from "../utility/logger.ts";
 import {
   createTodoService,
   deleteTodoService,
   getTodoService,
   updateTodoService,
 } from "../services/todo.service.ts";
+import { APIError } from "../utility/Error.ts";
+import { APISuccess } from "../utility/Success.ts";
+import logger from "../utility/logger.ts";
 
 export const createTodoController = async (
   req: Request<{}, {}, Omit<Todo, "id">>,
   res: Response,
 ) => {
   try {
-    const todo = await createTodoService(req.body);
+    const todo = await createTodoService(req.baseUrl, req.body);
 
     return res.status(201).json(
       new APISuccess<Todo>({
@@ -42,9 +41,13 @@ export const createTodoController = async (
   }
 };
 
-export const getTodosController = async (req: Request, res: Response) => {
+export const getTodosController = async (
+  req: Request<{}, {}, {}, Partial<Pick<Todo, "title" | "description">>>,
+  res: Response,
+) => {
   try {
-    const todos = await getTodoService();
+    // console.log(req.query, req.baseUrl, req.route, req.url,req.originalUrl);
+    const todos = await getTodoService(req.query, req.baseUrl);
 
     return res.status(200).json(
       new APISuccess<Todo[]>({

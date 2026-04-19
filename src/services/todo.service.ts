@@ -2,8 +2,14 @@ import { prisma } from "../config/prisma.ts";
 import type { Todo } from "../models/todo.model.ts";
 import { APIError } from "../utility/Error.ts";
 import logger from "../utility/logger.ts";
+import client from "../utility/Redis.ts";
+import { convertURLToRedisKey, scanAndDeleteKey } from "../utility/utils.ts";
 
-export const createTodoService = async (body: Omit<Todo, "id">) => {
+const VALID_SEARCH_QUERY = ["title", "description"];
+export const createTodoService = async (
+  baseUrl: string,
+  body: Omit<Todo, "id">,
+) => {
   const { title, description } = body;
 
   if (!title)
@@ -36,13 +42,61 @@ export const createTodoService = async (body: Omit<Todo, "id">) => {
     });
   }
 
+  client.del(baseUrl);
   logger.info({ todoId: todo.id }, "Todo created successfully");
 
   return todo;
 };
 
-export const getTodoService = async () => {
-  const todos = await prisma.todo.findMany();
+export const getTodoService = async (
+  query: Partial<Pick<Todo, "title" | "description">>,
+  baseUrl: string,
+) => {
+  const invalidSearchQuery =
+    Object.keys(query)
+      .map((key) => key)
+      .filter((key) => !VALID_SEARCH_QUERY.includes(key)).length > 0;
+
+  if (invalidSearchQuery) {
+    throw new APIError({
+      message: "Invalid search query",
+      status: 401,
+      success: false,
+    });
+  }
+
+  const key = convertURLToRedisKey(baseUrl, query);
+
+  let cachedTodos;
+  if (client.isOpen) {
+    try {
+      cachedTodos = await client.get(key);
+    } catch (error) {
+      logger.error(error, "Getting todo from redis failed");
+    }
+  }
+
+  if (cachedTodos) {
+    console.log("Cached hit");
+    return JSON.parse(cachedTodos);
+  }
+
+  let whereQuery: any = {};
+
+  if (query.title && query.title.length > 0) {
+    whereQuery.title = { contains: query.title, mode: "insensitive" };
+  }
+
+  if (query.description && query.description.length > 0) {
+    whereQuery.description = {
+      contains: query.description,
+      mode: "insensitive",
+    };
+  }
+
+  const todos = await prisma.todo.findMany({
+    where: whereQuery,
+  });
 
   if (!todos) {
     logger.error("Something went wrong while fetching todos");
@@ -52,6 +106,17 @@ export const getTodoService = async () => {
       status: 500,
       success: false,
     });
+  }
+
+  console.log("Cached miss");
+  if (client.isOpen) {
+    try {
+      client.set(key, JSON.stringify(todos), {
+        expiration: { type: "EX", value: 300 },
+      });
+    } catch (error) {
+      logger.error(error, "Failed to set todo in redis");
+    }
   }
 
   return todos;
@@ -87,6 +152,17 @@ export const deleteTodoService = async (params: Pick<Todo, "id">) => {
       status: 500,
       success: false,
     });
+  }
+
+  if (client.isOpen) {
+    try {
+      await scanAndDeleteKey("api:todo*");
+    } catch (error) {
+      logger.error(
+        error,
+        "Something went wrong while deleting the stale redis keys",
+      );
+    }
   }
 
   logger.info({ todoId: todo.id }, "Todo deleted successfully");
@@ -145,6 +221,17 @@ export const updateTodoService = async (
       status: 500,
       success: false,
     });
+  }
+
+  if (client.isOpen) {
+    try {
+      await scanAndDeleteKey("api:todo*");
+    } catch (error) {
+      logger.error(
+        error,
+        "Something went wrong while deleting the stale redis keys",
+      );
+    }
   }
 
   logger.info({ todoId: updatedTodo.id }, "Todo updated successfully");
